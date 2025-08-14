@@ -31,7 +31,7 @@ services:
       --discovery.port=30303
       --rollup.sequencer-http https://rpc.testnet.sova.io
       --rollup.disable-tx-pool-gossip
-      --bootnodes enode://975e8b0bea233acfe4011e83ae81992998fc728ec98ebf0e0cda33103dcc34b78c24c46c844778ab049f5b8126801e872d35e8d55d7bd5893ceb1460104187bb@18.216.64.130:30303
+      --bootnodes enode://f2fc0fd08215db62622db650011d7ece117af14b2b93f06e6488bf6a4095af8d6f8a7621d06dacb7186fe34d89773352bc9456d5fdfd09106fa4a7fe6ad793aa@18.216.64.130:30303
       --metrics=0.0.0.0:6060
       --datadir /var/lib/sova
       --log.stdout.filter ${LOG_LEVEL}

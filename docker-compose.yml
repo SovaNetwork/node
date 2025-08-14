@@ -1,0 +1,139 @@
+services:
+  sova-reth-validator:
+    container_name: sova-reth
+    image: ghcr.io/sovanetwork/sova-reth:latest
+    environment:
+      NETWORK_UTXOS_API_KEY: ${INDEXER_SHARED_API_KEY:-}
+      SOVA_DERIVATION_XPUB: ${SOVA_DERIVATION_XPUB:-}
+      SOVA_SEQUENCER_MODE: false
+    command: >
+      node
+      --chain testnet
+      --btc-network regtest
+      --btc-network-url https://bitcoin.testnet.sova.io
+      --btc-rpc-username user
+      --btc-rpc-password password
+      --rpc-connection-type external
+      --network-utxos-url https://utxos.testnet.sova.io
+      --sentinel-url http://sentinel-server-validator:50051
+      --sentinel-confirmation-threshold 6
+      --http
+      --http.addr 0.0.0.0
+      --http.port 8545
+      --ws
+      --ws.addr 0.0.0.0
+      --ws.port 8546
+      --http.api all
+      --authrpc.addr 0.0.0.0
+      --authrpc.port 8551
+      --authrpc.jwtsecret=/config/jwt.txt
+      --port=30303
+      --discovery.port=30303
+      --rollup.sequencer-http https://rpc.testnet.sova.io
+      --rollup.disable-tx-pool-gossip
+      --bootnodes enode://975e8b0bea233acfe4011e83ae81992998fc728ec98ebf0e0cda33103dcc34b78c24c46c844778ab049f5b8126801e872d35e8d55d7bd5893ceb1460104187bb@18.216.64.130:30303
+      --metrics=0.0.0.0:6060
+      --datadir /var/lib/sova
+      --log.stdout.filter ${LOG_LEVEL}
+    ports:
+      - "8545:8545"
+      - "8546:8546"
+      - "30303:30303"
+      - "30303:30303/udp"
+      - "6060:6060"
+    networks:
+      - sova_validator_network
+    volumes:
+      - validator-data:/var/lib/sova
+      - ./config:/config
+    depends_on:
+      sentinel-server-validator:
+        condition: service_started
+    healthcheck:
+      start_interval: 5s
+      start_period: 120s
+      test: |
+        curl -f -X POST -H "Content-Type: application/json" \
+        --data '{"jsonrpc":"2.0","method":"net_version","params":[],"id":1}' \
+        http://localhost:8545 || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  sentinel-server-validator:
+    container_name: sentinel
+    image: ghcr.io/sovanetwork/sova-sentinel:v0.1.4
+    environment:
+      - SOVA_SENTINEL_HOST=0.0.0.0
+      - SOVA_SENTINEL_PORT=50051
+      - SOVA_SENTINEL_DB_PATH=/app/data/slot_locks.db
+      - BITCOIN_RPC_URL=https://bitcoin.testnet.sova.io
+      - BITCOIN_RPC_CONNECTION_TYPE=external
+      - BITCOIN_CONFIRMATION_THRESHOLD=6
+      - BITCOIN_REVERT_THRESHOLD=18
+      - BITCOIN_RPC_MAX_RETRIES=5
+      - RUST_LOG=${LOG_LEVEL}
+    ports:
+      - "50051:50051"
+    networks:
+      - sova_validator_network
+    volumes:
+      - validator-sentinel-data:/app/data
+ 
+  op-node-validator:
+    container_name: op-node
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:v1.13.4
+    command: >
+      op-node
+      --l2=http://sova-reth-validator:8551
+      --l2.enginekind=reth
+      --l2.jwt-secret=/config/jwt.txt
+      --verifier.l1-confs=4
+      --rpc.addr=0.0.0.0
+      --rpc.port=9545
+      --rpc.enable-admin
+      --l1=${ALCHEMY_L1_RPC_URL}
+      --l1.rpckind=alchemy
+      --l1.beacon=${L1_BEACON_URL}
+      --p2p.listen.ip=0.0.0.0
+      --p2p.listen.tcp=9222
+      --p2p.listen.udp=9222
+      --p2p.discovery.path=/data/opnode_discovery_db
+      --p2p.peerstore.path=/data/opnode_peerstore_db
+      --p2p.priv.path=/data/opnode_p2p_priv.txt
+      --metrics.enabled
+      --metrics.addr=0.0.0.0
+      --metrics.port=7300
+      --syncmode=execution-layer
+      --log.level=${LOG_LEVEL}
+      --log.format=logfmt
+    volumes:
+      - ./config:/config
+      - validator-node-data:/data
+    ports:
+      - "9545:9545"
+      - "9222:9222"
+      - "9222:9222/udp"
+      - "7300:7300"
+    depends_on:
+      sova-reth-validator:
+        condition: service_healthy
+    healthcheck:
+      start_interval: 5s
+      start_period: 120s
+      test: ["CMD", "curl", "-f", "http://localhost:9545"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - sova_validator_network
+
+networks:
+  sova_validator_network:
+    driver: bridge
+
+volumes:
+  validator-data:
+  validator-node-data:
+  validator-sentinel-data:
+

@@ -13,6 +13,6 @@ This repository contains Docker builds to run your own node on the Sova network.
 4. Generate your own `config/jwt.txt` file.
 5. Start the node:
 ```bash
-docker compose --env-file .env.sepolia up --build
+docker compose --env-file .env.sepolia up --build -d
 ```
 
